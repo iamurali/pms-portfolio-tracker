@@ -11,6 +11,8 @@ import os
 from datetime import datetime
 from telethon.sync import TelegramClient
 from telethon.sessions import StringSession
+from cryptography.fernet import Fernet, InvalidToken
+import base64
 from telethon.tl.types import MessageMediaPoll
 
 class MyAlternatesAutomation:
@@ -161,7 +163,7 @@ class MyAlternatesAutomation:
                 WebDriverWait(self.driver, 15).until(
                     lambda driver: "dashboard" in driver.current_url.lower()
                 )
-                print(f"Successfully redirected to: {self.driver.current_url}")
+                # print(f"Successfully redirected to: {self.driver.current_url}")
             except TimeoutException:
                 print(f"Timeout waiting for redirect. Current URL: {self.driver.current_url}")
                 # Continue anyway as login might still be successful
@@ -276,25 +278,102 @@ class MyAlternatesAutomation:
                 print("Closing browser...")
                 self.driver.quit()
 
-    def load_previous_data(self):
-        """Load previous portfolio data from file"""
+    def get_fernet_key(self):
+        """
+        Return a Fernet key (bytes). Read from environment variable FERNET_KEY.
+        The key should be a URL-safe base64-encoded 32-byte key (Fernet standard).
+        """
+        key = os.environ.get("FERNET_KEY")  # set this in GitHub Secrets or env locally
+        if not key:
+            return None
+        # If someone stored it with literal \n or whitespace, strip it
+        key = key.strip()
         try:
-            if os.path.exists(self.data_file):
-                with open(self.data_file, 'r') as f:
-                    return json.load(f)
+            # validate base64 by converting to bytes and back
+            kbytes = key.encode("utf-8")
+            # Fernet will validate the key when used; just return bytes
+            return kbytes
+        except Exception:
+            return None
+
+    def make_fernet(self):
+        """
+        Create Fernet instance from env key. Returns Fernet or None.
+        """
+        k = self.get_fernet_key()
+        if not k:
+            return None
+        try:
+            return Fernet(k)
+        except Exception as e:
+            print("Invalid FERNET_KEY:", e)
+            return None
+
+    def load_previous_data(self):
+        """Load previous portfolio data from encrypted file (portfolio_data.enc)."""
+        enc_path = "portfolio_data.enc"
+        if not os.path.exists(enc_path):
+            # fallback to old unencrypted file for compatibility
+            plain_path = self.data_file
+            if os.path.exists(plain_path):
+                try:
+                    with open(plain_path, "r", encoding="utf-8") as f:
+                        return json.load(f)
+                except Exception as e:
+                    print(f"Error loading plain data file: {e}")
+            return None
+        fernet = self.make_fernet()
+        if not fernet:
+            print("FERNET_KEY not configured or invalid - cannot decrypt stored portfolio_data.enc")
+            return None
+        try:
+            with open(enc_path, "rb") as fh:
+                token = fh.read()
+            plaintext = fernet.decrypt(token)
+            data = json.loads(plaintext.decode("utf-8"))
+            return data
+        except InvalidToken:
+            print("Decryption failed: Invalid Fernet token (wrong key or corrupted file).")
             return None
         except Exception as e:
-            print(f"Error loading previous data: {e}")
+            print(f"Error reading/decrypting {enc_path}: {e}")
             return None
 
     def save_current_data(self, data):
-        """Save current portfolio data to file"""
+        """
+        Save current portfolio data encrypted to portfolio_data.enc using FERNET_KEY.
+        Also keep a plaintext backup if FERNET_KEY not configured (optional).
+        """
+        enc_path = "portfolio_data.enc"
+        plain_path = self.data_file
+
+        fernet = self.make_fernet()
+        payload = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+        if fernet:
+            try:
+                token = fernet.encrypt(payload)
+                with open(enc_path, "wb") as fh:
+                    fh.write(token)
+                # optional: remove plaintext file if exists (safer)
+                if os.path.exists(plain_path):
+                    try:
+                        os.remove(plain_path)
+                    except Exception:
+                        pass
+                print(f"Encrypted data saved to {enc_path}")
+                return
+            except Exception as e:
+                print(f"Failed to encrypt and save data: {e}")
+                # fallthrough to save plaintext below
+
+        # If no key or encryption failed, save plaintext as fallback (less secure)
         try:
-            with open(self.data_file, 'w') as f:
+            with open(plain_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
-            print(f"Data saved to {self.data_file}")
+            print(f"FERNET_KEY not available — saved plaintext to {plain_path}")
         except Exception as e:
-            print(f"Error saving data: {e}")
+            print(f"Error saving plaintext data: {e}")
 
     def analyze_changes(self, previous_data, current_data):
         """Analyze portfolio changes with enhanced detail"""
