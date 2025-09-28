@@ -45,6 +45,7 @@ jobs:
         LOGIN_URL: ${{ secrets.LOGIN_URL }}
         SESSION_API_URL: ${{ secrets.SESSION_API_URL }}
         INVESTOR_API_URL: ${{ secrets.INVESTOR_API_URL }}
+        FERNET_KEY: ${{ secrets.FERNET_KEY }}
       run: |
         python portfolio_tracker.py
     
