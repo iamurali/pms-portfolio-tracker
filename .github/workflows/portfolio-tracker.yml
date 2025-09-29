@@ -1,9 +1,9 @@
 name: Portfolio Tracker Daily Report
 
 on:
-  schedule:
+  # schedule:
     # Run daily at 9:00 PM IST (15:30 UTC)
-    - cron: '30 15 * * *'
+    # - cron: '30 15 * * *'
   workflow_dispatch: # Allow manual trigger for testing
   repository_dispatch:  # Add this - allows external trigger
     types: [pm-telegram-bot]
