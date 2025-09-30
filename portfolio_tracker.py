@@ -554,7 +554,7 @@ class MyAlternatesAutomation:
         else:
             portfolio = analysis.get('portfolio', {})
             value = portfolio.get('current_value', 0)
-            day_change = portfolio.get('value_change', 0)
+            day_change = portfolio.get('current_value', 0) - portfolio.get('previous_value', 0)
             day_pct = portfolio.get('value_change_pct', 0)
             total_return = portfolio.get('current_return', 0)
             return_change = portfolio.get('return_change', 0)
