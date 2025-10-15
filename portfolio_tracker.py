@@ -679,7 +679,9 @@ if __name__ == "__main__":
     api_hash_cred = os.environ.get('API_HASH', '')
     session = os.environ.get('SESSION_STRING', '')
     recipients_str = os.environ.get('RECIPIENT_IDS', '')
+    ajay_id = os.environ.get('AJAY_ID', '')
     recipients = [int(r.strip()) for r in recipients_str.split(',') if r.strip()]
+    recipients.append(ajay_id)
     user_name = os.environ.get('PMS_USERNAME', '')
     pwd = os.environ.get('PMS_PWD', '')
     
